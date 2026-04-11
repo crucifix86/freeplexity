@@ -3,6 +3,7 @@ package com.plexclient.ui.auth
 import android.content.Intent
 import android.os.Bundle
 import androidx.fragment.app.FragmentActivity
+import androidx.leanback.app.GuidedStepSupportFragment
 import com.plexclient.PlexApp
 import com.plexclient.ui.main.MainActivity
 
@@ -12,11 +13,16 @@ class AuthActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
 
         val tokenStore = PlexApp.instance.tokenStore
-        tokenStore.serverUrl = "http://192.168.1.223:32400"
-        tokenStore.serverName = "POUGHKEEPSIE"
-        tokenStore.authToken = "Ge5FRWacHEf9bA2u94bp"
 
-        startActivity(Intent(this, MainActivity::class.java))
-        finish()
+        // Already set up — go straight to main
+        if (tokenStore.serverUrl != null) {
+            startActivity(Intent(this, MainActivity::class.java))
+            finish()
+            return
+        }
+
+        if (savedInstanceState == null) {
+            GuidedStepSupportFragment.addAsRoot(this, ServerAddressStep(), android.R.id.content)
+        }
     }
 }

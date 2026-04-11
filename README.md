@@ -38,9 +38,31 @@ adb install app-debug.apk
 
 ## Setup
 
-On first launch, FreePlexity connects directly to your Plex server. Edit `AuthActivity.kt` with your server's IP and Plex token.
+On first launch, the app walks you through a setup wizard:
 
-You can grab your Plex token from your server's `Preferences.xml` or from `localStorage.getItem("myPlexAccessToken")` in the Plex web player's browser console.
+1. **Enter your server address** — your Plex server's IP and port (e.g. `192.168.1.100:32400`)
+2. **Authentication** — if your server requires auth, you'll be asked for a Plex token
+
+### Getting your Plex token
+
+**Option 1 — From the Plex web player:**
+Open your server in a browser (e.g. `http://192.168.1.100:32400/web`), press F12 to open dev tools, go to Console, and run:
+```
+localStorage.getItem("myPlexAccessToken")
+```
+
+**Option 2 — From your server's config file:**
+Find `Preferences.xml` in your Plex data directory and look for `PlexOnlineToken="your_token_here"`.
+- **Unraid (Docker):** Check your Plex container's appdata, e.g. `/mnt/user/appdata/plex/Plex Media Server/Preferences.xml`
+- **Linux:** `~/.local/share/plexmediaserver/Preferences.xml` or similar
+- **Windows:** `%LOCALAPPDATA%\Plex Media Server\Preferences.xml`
+
+**Option 3 — Disable auth entirely:**
+In Plex, go to **Settings > Network > Show Advanced**, uncheck **"Require authentication for local network access"**, and save. Then connect without a token.
+
+### Signing out / changing server
+
+Go to **Settings > Sign Out** in the app to clear your connection and re-run the setup wizard.
 
 ## Pushing an Update
 
