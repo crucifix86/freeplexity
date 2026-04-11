@@ -38,27 +38,32 @@ adb install app-debug.apk
 
 ## Setup
 
-On first launch, the app walks you through a setup wizard:
+On first launch, the setup wizard asks for your server address and offers two ways to connect:
 
-1. **Enter your server address** — your Plex server's IP and port (e.g. `192.168.1.100:32400`)
-2. **Authentication** — if your server requires auth, you'll be asked for a Plex token
+### Option 1 — Connect Without Token (recommended for home use)
 
-### Getting your Plex token
+This requires telling your Plex server to allow your local network without authentication:
 
-**Option 1 — From the Plex web player:**
-Open your server in a browser (e.g. `http://192.168.1.100:32400/web`), press F12 to open dev tools, go to Console, and run:
-```
-localStorage.getItem("myPlexAccessToken")
-```
+1. Open your Plex server's web UI (e.g. `http://192.168.1.100:32400/web`)
+2. Go to **Settings > Network**
+3. Click **Show Advanced**
+4. In **"List of IP addresses and networks that are allowed without auth"**, add your local network:
+   ```
+   192.168.1.0/255.255.255.0
+   ```
+   (adjust if your network uses a different subnet)
+5. Save and restart Plex
 
-**Option 2 — From your server's config file:**
-Find `Preferences.xml` in your Plex data directory and look for `PlexOnlineToken="your_token_here"`.
-- **Unraid (Docker):** Check your Plex container's appdata, e.g. `/mnt/user/appdata/plex/Plex Media Server/Preferences.xml`
-- **Linux:** `~/.local/share/plexmediaserver/Preferences.xml` or similar
-- **Windows:** `%LOCALAPPDATA%\Plex Media Server\Preferences.xml`
+Now in FreePlexity, enter your server address (e.g. `192.168.1.100:32400`) and hit **"Connect Without Token"**. Done — no accounts, no cloud, fully local.
 
-**Option 3 — Disable auth entirely:**
-In Plex, go to **Settings > Network > Show Advanced**, uncheck **"Require authentication for local network access"**, and save. Then connect without a token.
+### Option 2 — Connect With Plex Account
+
+If you don't want to change your server settings:
+
+1. Enter your server address and hit **"Connect With Plex Account"**
+2. A 4-character code appears on screen
+3. On your phone or computer, go to **plex.tv/link** and enter the code
+4. The app stores the token locally — it only contacts Plex servers during this one-time setup
 
 ### Signing out / changing server
 
