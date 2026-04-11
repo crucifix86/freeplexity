@@ -24,8 +24,9 @@ class AppUpdater(private val context: Context) {
 
     private val http = OkHttpClient.Builder()
         .connectTimeout(15, TimeUnit.SECONDS)
-        .readTimeout(60, TimeUnit.SECONDS)
+        .readTimeout(120, TimeUnit.SECONDS)
         .followRedirects(true)
+        .followSslRedirects(true)
         .build()
 
     suspend fun checkForUpdate(): UpdateInfo? = withContext(Dispatchers.IO) {

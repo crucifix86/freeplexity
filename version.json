@@ -1,6 +1,6 @@
 {
-  "versionCode": 3,
-  "versionName": "1.2",
+  "versionCode": 5,
+  "versionName": "1.4",
   "apkUrl": "https://github.com/crucifix86/freeplexity/releases/latest/download/freeplexity.apk",
-  "changelog": "Testing OTA update flow"
+  "changelog": "OTA update test release"
 }
