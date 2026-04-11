@@ -1,6 +1,6 @@
 {
-  "versionCode": 2,
-  "versionName": "1.1",
+  "versionCode": 3,
+  "versionName": "1.2",
   "apkUrl": "https://github.com/crucifix86/freeplexity/releases/latest/download/freeplexity.apk",
-  "changelog": "Update badge on settings icon, alphabet jump in libraries, improved player controls"
+  "changelog": "Testing OTA update flow"
 }
