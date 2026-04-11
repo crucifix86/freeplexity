@@ -8,8 +8,11 @@ import android.view.ViewGroup
 import androidx.fragment.app.FragmentActivity
 import com.plexclient.R
 import com.plexclient.ui.search.SearchActivity
+import com.plexclient.ui.settings.AppUpdater
 import com.plexclient.ui.settings.SettingsActivity
 import com.plexclient.ui.main.LibraryGridFragment
+import androidx.lifecycle.lifecycleScope
+import kotlinx.coroutines.launch
 
 class MainActivity : FragmentActivity() {
 
@@ -51,6 +54,17 @@ class MainActivity : FragmentActivity() {
         // Start focused on browse content
         findViewById<View>(R.id.main_fragment)?.post {
             findViewById<View>(R.id.main_fragment)?.requestFocus()
+        }
+
+        // Check for updates in background
+        checkForUpdate()
+    }
+
+    private fun checkForUpdate() {
+        lifecycleScope.launch {
+            val update = AppUpdater(this@MainActivity).checkForUpdate()
+            val badge = findViewById<View>(R.id.update_badge)
+            badge?.visibility = if (update != null) View.VISIBLE else View.GONE
         }
     }
 
