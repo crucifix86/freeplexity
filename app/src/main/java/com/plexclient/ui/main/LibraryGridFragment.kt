@@ -117,40 +117,38 @@ class LibraryGridFragment : VerticalGridSupportFragment(),
                 gridAdapter.clear()
                 sortedItems.forEach { gridAdapter.add(it) }
                 fragmentAdapter.fragmentHost?.notifyDataReady(fragmentAdapter)
-
-                // Now that grid is loaded, attach key listener for alphabet trigger
-                view?.let { attachKeyInterceptor(it) }
             } catch (_: Exception) {}
         }
     }
 
-    private fun attachKeyInterceptor(rootView: View) {
-        // Intercept key events on the root view to catch RIGHT at grid edge
-        rootView.setOnKeyListener { _, keyCode, event ->
-            if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
-
-            if (stripShowing) {
-                // Strip is active — handle navigation within it
-                return@setOnKeyListener handleStripKey(keyCode)
-            }
-
-            // RIGHT press — check if we should show the alphabet
-            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
-                // If on the rightmost column, show alphabet
-                if (currentGridPosition >= 0 && (currentGridPosition + 1) % columns == 0) {
-                    showAlphabetStrip(rootView)
-                    return@setOnKeyListener true
-                }
-            }
-
-            // Also allow a dedicated button (e.g., menu) to open the strip
-            if (keyCode == KeyEvent.KEYCODE_MENU) {
-                showAlphabetStrip(rootView)
-                return@setOnKeyListener true
-            }
-
-            false
+    /**
+     * Called from MainActivity.dispatchKeyEvent for RIGHT and MENU keys.
+     */
+    fun handleKeyEvent(keyCode: Int): Boolean {
+        if (stripShowing) {
+            return handleStripKey(keyCode)
         }
+
+        // Only intercept RIGHT and MENU when strip is not showing
+        if (keyCode != KeyEvent.KEYCODE_DPAD_RIGHT && keyCode != KeyEvent.KEYCODE_MENU) {
+            return false
+        }
+
+        if (letterIndex.isEmpty()) return false
+
+        if (keyCode == KeyEvent.KEYCODE_MENU) {
+            view?.let { showAlphabetStrip(it) }
+            return true
+        }
+
+        if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+            if (currentGridPosition >= 0 && (currentGridPosition + 1) % columns == 0) {
+                view?.let { showAlphabetStrip(it) }
+                return true
+            }
+        }
+
+        return false
     }
 
     private fun showAlphabetStrip(rootView: View) {

@@ -6,7 +6,9 @@ import androidx.fragment.app.FragmentActivity
 import androidx.leanback.app.GuidedStepSupportFragment
 import androidx.leanback.widget.GuidanceStylist
 import androidx.leanback.widget.GuidedAction
+import androidx.lifecycle.lifecycleScope
 import com.plexclient.PlexApp
+import kotlinx.coroutines.launch
 
 class SettingsActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -19,19 +21,16 @@ class SettingsActivity : FragmentActivity() {
 
 class SettingsFragment : GuidedStepSupportFragment() {
 
+    private var updateInfo: UpdateInfo? = null
+    private val updater by lazy { AppUpdater(requireContext()) }
+
     override fun onCreateGuidance(savedInstanceState: Bundle?): GuidanceStylist.Guidance {
-        return GuidanceStylist.Guidance(
-            "Settings",
-            "PlexClient",
-            "",
-            null
-        )
+        return GuidanceStylist.Guidance("Settings", "FreePlexity", "", null)
     }
 
     override fun onCreateActions(actions: MutableList<GuidedAction>, savedInstanceState: Bundle?) {
         val tokenStore = PlexApp.instance.tokenStore
 
-        // Server info
         actions.add(GuidedAction.Builder(requireContext())
             .id(ACTION_SERVER)
             .title("Server")
@@ -46,7 +45,6 @@ class SettingsFragment : GuidedStepSupportFragment() {
             .editable(false)
             .build())
 
-        // Playback
         actions.add(GuidedAction.Builder(requireContext())
             .id(ACTION_QUALITY)
             .title("Transcode Quality")
@@ -58,7 +56,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
             .title("Direct Play")
             .description("Try direct play before transcoding")
             .checkSetId(GuidedAction.CHECKBOX_CHECK_SET_ID)
-            .checked(getDirectPlayPref())
+            .checked(getPref("direct_play", true))
             .build())
 
         actions.add(GuidedAction.Builder(requireContext())
@@ -66,29 +64,30 @@ class SettingsFragment : GuidedStepSupportFragment() {
             .title("Audio Passthrough")
             .description("Pass surround audio to receiver")
             .checkSetId(GuidedAction.CHECKBOX_CHECK_SET_ID)
-            .checked(getAudioPassthroughPref())
+            .checked(getPref("audio_passthrough", true))
             .build())
 
-        // Subtitles
         actions.add(GuidedAction.Builder(requireContext())
             .id(ACTION_SUBTITLE_SIZE)
             .title("Subtitle Size")
             .description(getSubtitleSizeLabel())
             .build())
 
-        // About
+        // Update action — starts as "Check for Updates"
+        actions.add(GuidedAction.Builder(requireContext())
+            .id(ACTION_UPDATE)
+            .title("Check for Updates")
+            .description("Version ${getCurrentVersion()}")
+            .build())
+
         actions.add(GuidedAction.Builder(requireContext())
             .id(ACTION_CLEAR)
             .title("Sign Out")
             .description("Clear saved server and token")
             .build())
 
-        actions.add(GuidedAction.Builder(requireContext())
-            .id(ACTION_VERSION)
-            .title("Version")
-            .description("1.0-debug")
-            .editable(false)
-            .build())
+        // Check for updates automatically
+        checkForUpdate()
     }
 
     override fun onGuidedActionClicked(action: GuidedAction) {
@@ -105,12 +104,10 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 notifyActionChanged(findActionPositionById(ACTION_QUALITY))
             }
             ACTION_DIRECT_PLAY -> {
-                val enabled = action.isChecked
-                prefs.edit().putBoolean("direct_play", enabled).apply()
+                prefs.edit().putBoolean("direct_play", action.isChecked).apply()
             }
             ACTION_AUDIO_PASSTHROUGH -> {
-                val enabled = action.isChecked
-                prefs.edit().putBoolean("audio_passthrough", enabled).apply()
+                prefs.edit().putBoolean("audio_passthrough", action.isChecked).apply()
             }
             ACTION_SUBTITLE_SIZE -> {
                 val sizes = listOf("75", "100", "125", "150")
@@ -121,12 +118,75 @@ class SettingsFragment : GuidedStepSupportFragment() {
                 action.description = labels[idx]
                 notifyActionChanged(findActionPositionById(ACTION_SUBTITLE_SIZE))
             }
+            ACTION_UPDATE -> {
+                val info = updateInfo
+                if (info != null) {
+                    downloadAndInstall(info, action)
+                } else {
+                    action.description = "Checking..."
+                    notifyActionChanged(findActionPositionById(ACTION_UPDATE))
+                    checkForUpdate()
+                }
+            }
             ACTION_CLEAR -> {
                 PlexApp.instance.tokenStore.clear()
                 Toast.makeText(requireContext(), "Signed out", Toast.LENGTH_SHORT).show()
                 requireActivity().finish()
             }
         }
+    }
+
+    private fun checkForUpdate() {
+        lifecycleScope.launch {
+            val info = updater.checkForUpdate()
+            updateInfo = info
+
+            val pos = findActionPositionById(ACTION_UPDATE)
+            if (pos < 0) return@launch
+            val action = findActionById(ACTION_UPDATE) ?: return@launch
+
+            if (info != null) {
+                action.title = "\uD83D\uDD34  Update Available — v${info.versionName}"
+                action.description = info.changelog
+            } else {
+                action.title = "Up to Date"
+                action.description = "Version ${getCurrentVersion()}"
+            }
+            notifyActionChanged(pos)
+        }
+    }
+
+    private fun downloadAndInstall(info: UpdateInfo, action: GuidedAction) {
+        action.title = "Downloading..."
+        action.description = "0%"
+        notifyActionChanged(findActionPositionById(ACTION_UPDATE))
+
+        lifecycleScope.launch {
+            val apkFile = updater.downloadUpdate(info.apkUrl) { percent ->
+                action.description = "$percent%"
+                val pos = findActionPositionById(ACTION_UPDATE)
+                if (pos >= 0) notifyActionChanged(pos)
+            }
+
+            if (apkFile != null) {
+                action.title = "Installing..."
+                action.description = "Opening installer"
+                notifyActionChanged(findActionPositionById(ACTION_UPDATE))
+                updater.installApk(apkFile)
+            } else {
+                action.title = "Update Failed"
+                action.description = "Tap to retry"
+                notifyActionChanged(findActionPositionById(ACTION_UPDATE))
+                Toast.makeText(requireContext(), "Download failed", Toast.LENGTH_LONG).show()
+            }
+        }
+    }
+
+    private fun getCurrentVersion(): String {
+        return try {
+            val pInfo = requireContext().packageManager.getPackageInfo(requireContext().packageName, 0)
+            pInfo.versionName ?: "?"
+        } catch (_: Exception) { "?" }
     }
 
     private fun getQualityLabel(): String {
@@ -152,14 +212,8 @@ class SettingsFragment : GuidedStepSupportFragment() {
         }
     }
 
-    private fun getDirectPlayPref(): Boolean {
-        return requireContext().getSharedPreferences("plex_settings", 0)
-            .getBoolean("direct_play", true)
-    }
-
-    private fun getAudioPassthroughPref(): Boolean {
-        return requireContext().getSharedPreferences("plex_settings", 0)
-            .getBoolean("audio_passthrough", true)
+    private fun getPref(key: String, default: Boolean): Boolean {
+        return requireContext().getSharedPreferences("plex_settings", 0).getBoolean(key, default)
     }
 
     companion object {
@@ -169,7 +223,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_DIRECT_PLAY = 4L
         private const val ACTION_AUDIO_PASSTHROUGH = 5L
         private const val ACTION_SUBTITLE_SIZE = 6L
-        private const val ACTION_CLEAR = 7L
-        private const val ACTION_VERSION = 8L
+        private const val ACTION_UPDATE = 7L
+        private const val ACTION_CLEAR = 8L
     }
 }

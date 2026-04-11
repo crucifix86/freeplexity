@@ -9,6 +9,7 @@ import androidx.fragment.app.FragmentActivity
 import com.plexclient.R
 import com.plexclient.ui.search.SearchActivity
 import com.plexclient.ui.settings.SettingsActivity
+import com.plexclient.ui.main.LibraryGridFragment
 
 class MainActivity : FragmentActivity() {
 
@@ -54,6 +55,16 @@ class MainActivity : FragmentActivity() {
     }
 
     override fun dispatchKeyEvent(event: KeyEvent): Boolean {
+        // Let the library grid alphabet strip handle keys when active
+        if (event.action == KeyEvent.ACTION_DOWN) {
+            val mainFragment = supportFragmentManager.findFragmentById(R.id.main_fragment)
+            val gridFragment = mainFragment?.childFragmentManager?.fragments
+                ?.filterIsInstance<LibraryGridFragment>()?.firstOrNull()
+            if (gridFragment != null && gridFragment.handleKeyEvent(event.keyCode)) {
+                return true
+            }
+        }
+
         if (event.action == KeyEvent.ACTION_DOWN && event.keyCode == KeyEvent.KEYCODE_DPAD_UP) {
             val focused = currentFocus ?: return super.dispatchKeyEvent(event)
             val topBar = findViewById<View>(R.id.top_bar)
