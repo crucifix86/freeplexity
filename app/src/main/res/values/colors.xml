@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Plex-style dark theme -->
+    <color name="background_dark">#FF1F1F1F</color>
+    <color name="background_card">#FF2A2A2A</color>
+    <color name="background_card_info">#FF252525</color>
+    <color name="background_header">#FF141414</color>
+
+    <!-- Plex gold accent -->
+    <color name="accent">#FFE5A00D</color>
+    <color name="accent_dark">#FFCC8A00</color>
+
+    <!-- Text -->
+    <color name="text_primary">#FFEEEEEE</color>
+    <color name="text_secondary">#FF999999</color>
+    <color name="text_tertiary">#FF666666</color>
+
+    <!-- Progress / status -->
+    <color name="progress_bar">#FFE5A00D</color>
+    <color name="progress_track">#44FFFFFF</color>
+    <color name="watched_overlay">#88000000</color>
+
+    <!-- Search -->
+    <color name="search_orb">#FFE5A00D</color>
+</resources>

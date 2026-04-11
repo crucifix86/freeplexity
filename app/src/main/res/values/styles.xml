@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <style name="AppTheme" parent="@style/Theme.Leanback">
+        <item name="android:windowBackground">@color/background_dark</item>
+        <item name="android:colorPrimary">@color/accent</item>
+        <item name="android:colorAccent">@color/accent</item>
+        <item name="defaultBrandColor">@color/background_header</item>
+        <item name="defaultSearchColor">@color/accent</item>
+        <item name="defaultSearchBrightColor">@color/accent</item>
+    </style>
+</resources>
