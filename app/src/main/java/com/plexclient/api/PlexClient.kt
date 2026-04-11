@@ -187,8 +187,9 @@ class PlexClient(private val tokenStore: TokenStore) {
 
     fun getDirectPlayUrl(serverUrl: String, item: MediaItem): String? {
         val partKey = item.media.firstOrNull()?.parts?.firstOrNull()?.key ?: return null
-        val token = tokenStore.authToken ?: return null
-        return "$serverUrl$partKey?X-Plex-Token=$token"
+        val token = tokenStore.authToken
+        return if (token != null) "$serverUrl$partKey?X-Plex-Token=$token"
+            else "$serverUrl$partKey"
     }
 
     fun getTranscodeUrl(serverUrl: String, item: MediaItem, startOffset: Long = 0): String {
@@ -256,15 +257,13 @@ class PlexClient(private val tokenStore: TokenStore) {
 
     fun getImageUrl(serverUrl: String, path: String?, width: Int = 300, height: Int = 450): String? {
         if (path == null) return null
-        val token = tokenStore.authToken ?: return null
-        return "$serverUrl/photo/:/transcode".toHttpUrl().newBuilder()
+        val builder = "$serverUrl/photo/:/transcode".toHttpUrl().newBuilder()
             .addQueryParameter("url", path)
             .addQueryParameter("width", width.toString())
             .addQueryParameter("height", height.toString())
             .addQueryParameter("minSize", "1")
-            .addQueryParameter("X-Plex-Token", token)
-            .build()
-            .toString()
+        tokenStore.authToken?.let { builder.addQueryParameter("X-Plex-Token", it) }
+        return builder.build().toString()
     }
 
     // -- Parsing ------------------------------------------------------------
