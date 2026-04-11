@@ -1,6 +1,42 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="oval">
-    <solid android:color="#FFE94560" />
-    <size android:width="48dp" android:height="48dp" />
-</shape>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Background circle -->
+    <path
+        android:fillColor="#FF1A1A2E"
+        android:pathData="M54,54m-50,0a50,50 0,1 1,100 0a50,50 0,1 1,-100 0" />
+
+    <!-- Outer ring accent -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#FFE5A00D"
+        android:strokeWidth="2.5"
+        android:pathData="M54,54m-46,0a46,46 0,1 1,92 0a46,46 0,1 1,-92 0" />
+
+    <!-- Inner subtle ring -->
+    <path
+        android:fillColor="#00000000"
+        android:strokeColor="#33E5A00D"
+        android:strokeWidth="1"
+        android:pathData="M54,54m-38,0a38,38 0,1 1,76 0a38,38 0,1 1,-76 0" />
+
+    <!-- Play triangle - gold -->
+    <path
+        android:fillColor="#FFE5A00D"
+        android:pathData="M44,36 L44,72 L72,54 Z" />
+
+    <!-- Small highlight on play button -->
+    <path
+        android:fillColor="#22FFFFFF"
+        android:pathData="M44,36 L44,54 L58,45 Z" />
+
+    <!-- "F" letter bottom-right -->
+    <path
+        android:fillColor="#AAFFFFFF"
+        android:pathData="M70,68 L70,80 L73,80 L73,75 L77,75 L77,73 L73,73 L73,71 L78,71 L78,68 Z" />
+
+</vector>
