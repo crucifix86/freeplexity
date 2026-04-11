@@ -10,8 +10,10 @@ import androidx.lifecycle.lifecycleScope
 import com.plexclient.PlexApp
 import com.plexclient.api.models.MediaItem
 import com.plexclient.ui.details.DetailsActivity
+import com.plexclient.ui.playback.PlaybackActivity
 import com.plexclient.ui.presenters.CardPresenter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -22,7 +24,7 @@ class SearchFragment : SearchSupportFragment(), SearchSupportFragment.SearchResu
     private val rowsAdapter = ArrayObjectAdapter(ListRowPresenter())
 
     private val searchHandler = Handler(Looper.getMainLooper())
-    private var pendingQuery: String? = null
+    private var searchJob: Job? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -30,10 +32,9 @@ class SearchFragment : SearchSupportFragment(), SearchSupportFragment.SearchResu
 
         setOnItemViewClickedListener { _, item, _, _ ->
             if (item is MediaItem) {
-                val intent = Intent(requireActivity(), DetailsActivity::class.java).apply {
+                startActivity(Intent(requireActivity(), DetailsActivity::class.java).apply {
                     putExtra(DetailsActivity.EXTRA_ITEM, item)
-                }
-                startActivity(intent)
+                })
             }
         }
     }
@@ -41,14 +42,15 @@ class SearchFragment : SearchSupportFragment(), SearchSupportFragment.SearchResu
     override fun getResultsAdapter(): ObjectAdapter = rowsAdapter
 
     override fun onQueryTextChange(newQuery: String?): Boolean {
-        // Debounce search input
         searchHandler.removeCallbacksAndMessages(null)
-        pendingQuery = newQuery
+        if (newQuery.isNullOrBlank()) {
+            rowsAdapter.clear()
+            return true
+        }
+        // Short debounce for live updating
         searchHandler.postDelayed({
-            if (pendingQuery == newQuery && !newQuery.isNullOrBlank()) {
-                performSearch(newQuery)
-            }
-        }, 400)
+            performSearch(newQuery)
+        }, 250)
         return true
     }
 
@@ -63,7 +65,9 @@ class SearchFragment : SearchSupportFragment(), SearchSupportFragment.SearchResu
     private fun performSearch(query: String) {
         val serverUrl = tokenStore.serverUrl ?: return
 
-        lifecycleScope.launch {
+        // Cancel previous search if still running
+        searchJob?.cancel()
+        searchJob = lifecycleScope.launch {
             try {
                 val results = withContext(Dispatchers.IO) {
                     plexClient.search(serverUrl, query)
@@ -71,11 +75,17 @@ class SearchFragment : SearchSupportFragment(), SearchSupportFragment.SearchResu
 
                 rowsAdapter.clear()
 
-                // Group results by type
-                val grouped = results.groupBy { it.type }
-                var rowIndex = 0L
+                if (results.isEmpty()) {
+                    return@launch
+                }
 
-                for ((type, items) in grouped) {
+                // Group by type, show in a logical order
+                val typeOrder = listOf("movie", "show", "episode", "season")
+                val grouped = results.groupBy { it.type }
+
+                var rowIndex = 0L
+                for (type in typeOrder) {
+                    val items = grouped[type] ?: continue
                     val headerTitle = when (type) {
                         "movie" -> "Movies"
                         "show" -> "TV Shows"
@@ -87,11 +97,21 @@ class SearchFragment : SearchSupportFragment(), SearchSupportFragment.SearchResu
                     val cardPresenter = CardPresenter(serverUrl, plexClient)
                     val listRowAdapter = ArrayObjectAdapter(cardPresenter)
                     items.forEach { listRowAdapter.add(it) }
-
                     rowsAdapter.add(ListRow(HeaderItem(rowIndex++, headerTitle), listRowAdapter))
                 }
-            } catch (e: Exception) {
-                // Search failed, clear results
+
+                // Any remaining types not in our order
+                for ((type, items) in grouped) {
+                    if (type in typeOrder) continue
+                    val cardPresenter = CardPresenter(serverUrl, plexClient)
+                    val listRowAdapter = ArrayObjectAdapter(cardPresenter)
+                    items.forEach { listRowAdapter.add(it) }
+                    rowsAdapter.add(ListRow(
+                        HeaderItem(rowIndex++, type.replaceFirstChar { it.uppercase() }),
+                        listRowAdapter
+                    ))
+                }
+            } catch (_: Exception) {
                 rowsAdapter.clear()
             }
         }
