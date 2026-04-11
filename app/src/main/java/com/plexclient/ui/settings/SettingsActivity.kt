@@ -162,10 +162,17 @@ class SettingsFragment : GuidedStepSupportFragment() {
         notifyActionChanged(findActionPositionById(ACTION_UPDATE))
 
         lifecycleScope.launch {
+            var lastReportedPercent = 0
             val apkFile = updater.downloadUpdate(info.apkUrl) { percent ->
-                action.description = "$percent%"
-                val pos = findActionPositionById(ACTION_UPDATE)
-                if (pos >= 0) notifyActionChanged(pos)
+                // Only update UI every 10% to avoid hammering the RecyclerView
+                if (percent - lastReportedPercent >= 10 || percent >= 100) {
+                    lastReportedPercent = percent
+                    lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Main) {
+                        action.description = "$percent%"
+                        val pos = findActionPositionById(ACTION_UPDATE)
+                        if (pos >= 0) notifyActionChanged(pos)
+                    }
+                }
             }
 
             if (apkFile != null) {

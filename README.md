@@ -5,14 +5,15 @@ A clean, lightweight Android TV Plex client. No bloat, no streaming channels, no
 ## Features
 
 - **Home screen** with Continue Watching, On Deck, and Recently Added rows
-- **Library grid views** sorted alphabetically with proper catalogue browsing
+- **Library grid views** sorted alphabetically with A-Z quick jump
 - **Media3/ExoPlayer** playback — direct play first, automatic transcode fallback
 - **Subtitle & audio track selection** with codec info (AC3, EAC3, DTS, AAC, etc.)
 - **Cast & crew** with photos pulled from Plex metadata
 - **Auto-play next episode** with cross-season support
 - **Watch progress sync** — progress reports back to your Plex server in real time
-- **Search** across all libraries
+- **Search** with live results as you type
 - **Settings** for transcode quality, audio passthrough, subtitle size
+- **OTA updates** — app checks GitHub for new releases and installs them
 
 ## Requirements
 
@@ -40,6 +41,65 @@ adb install app-debug.apk
 On first launch, FreePlexity connects directly to your Plex server. Edit `AuthActivity.kt` with your server's IP and Plex token.
 
 You can grab your Plex token from your server's `Preferences.xml` or from `localStorage.getItem("myPlexAccessToken")` in the Plex web player's browser console.
+
+## Pushing an Update
+
+The app has built-in OTA updates. Users see a red badge on the settings icon when a new version is available, and can download + install from within settings.
+
+To publish a new version:
+
+### 1. Bump the version numbers
+
+In `app/build.gradle.kts`, increment both values:
+
+```kotlin
+versionCode = 6        // must be higher than previous
+versionName = "1.5"    // display name
+```
+
+### 2. Update `version.json` in the repo root
+
+```json
+{
+  "versionCode": 6,
+  "versionName": "1.5",
+  "apkUrl": "https://github.com/crucifix86/freeplexity/releases/latest/download/freeplexity.apk",
+  "changelog": "Description of what changed"
+}
+```
+
+The `versionCode` here must match `build.gradle.kts`. The `apkUrl` always points to `/latest/download/` so it auto-resolves to the newest release.
+
+### 3. Build the APK
+
+```bash
+./gradlew assembleDebug
+cp app/build/outputs/apk/debug/app-debug.apk freeplexity.apk
+```
+
+### 4. Commit and push
+
+```bash
+git add -A
+git commit -m "v1.5 - description of changes"
+git push
+```
+
+### 5. Create a GitHub release
+
+```bash
+gh release create v1.5 freeplexity.apk --title "FreePlexity v1.5" --notes "Description of changes"
+```
+
+The APK **must** be named `freeplexity.apk` in the release — that's what the download URL expects.
+
+### How it works
+
+- On app launch, `AppUpdater` fetches `version.json` from the `main` branch on GitHub
+- Compares the remote `versionCode` against the installed app's version
+- If remote is higher, shows a red **!** badge on the settings gear
+- In settings, "Update Available" appears with the changelog
+- User clicks it — APK downloads with progress, then the system installer opens
 
 ## Tech Stack
 
