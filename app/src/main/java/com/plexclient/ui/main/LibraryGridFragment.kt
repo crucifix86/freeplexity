@@ -38,20 +38,22 @@ class LibraryGridFragment : VerticalGridSupportFragment(),
     private var gridAdapter: ArrayObjectAdapter? = null
 
     private var sortedItems: List<MediaItem> = emptyList()
-    private var letterIndex: Map<Char, Int> = emptyMap() // letter -> position in grid
-    private var alphabetStrip: LinearLayout? = null
-    private var alphabetVisible = false
+    private var letterIndex: Map<Char, Int> = emptyMap()
     private var columns = 7
+
+    private var alphabetStrip: LinearLayout? = null
+    private var alphabetScroll: ScrollView? = null
+    private var stripShowing = false
+    private var lastGridPosition = 0
+    private var currentGridPosition = 0
 
     override fun getMainFragmentAdapter() = fragmentAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
         libraryKey = arguments?.getString(ARG_KEY) ?: return
         libraryTitle = arguments?.getString(ARG_TITLE) ?: ""
         libraryType = arguments?.getString(ARG_TYPE) ?: "movie"
-
         setupGrid()
     }
 
@@ -66,15 +68,17 @@ class LibraryGridFragment : VerticalGridSupportFragment(),
             }
         }
 
-        // Add alphabet strip overlay
-        addAlphabetStrip(view)
+        setOnItemViewSelectedListener { _, item, _, _ ->
+            if (item is MediaItem) {
+                val idx = sortedItems.indexOf(item)
+                if (idx >= 0) currentGridPosition = idx
+            }
+        }
 
         loadLibrary()
     }
 
     private fun setupGrid() {
-        val serverUrl = tokenStore.serverUrl ?: return
-
         columns = when (libraryType) {
             "movie", "show" -> 7
             else -> 5
@@ -84,6 +88,7 @@ class LibraryGridFragment : VerticalGridSupportFragment(),
         gridPresenter.numberOfColumns = columns
         setGridPresenter(gridPresenter)
 
+        val serverUrl = tokenStore.serverUrl ?: return
         val cardPresenter = CardPresenter(serverUrl, plexClient)
         gridAdapter = ArrayObjectAdapter(cardPresenter)
         adapter = gridAdapter
@@ -101,139 +106,179 @@ class LibraryGridFragment : VerticalGridSupportFragment(),
 
                 sortedItems = items.sortedBy { sortTitle(it.title) }
 
-                // Build letter -> position index
                 val index = mutableMapOf<Char, Int>()
                 for ((i, item) in sortedItems.withIndex()) {
                     val letter = sortTitle(item.title).firstOrNull()?.uppercaseChar() ?: '#'
                     val key = if (letter in 'A'..'Z') letter else '#'
-                    if (key !in index) {
-                        index[key] = i
-                    }
+                    if (key !in index) index[key] = i
                 }
                 letterIndex = index
 
                 gridAdapter.clear()
                 sortedItems.forEach { gridAdapter.add(it) }
-
                 fragmentAdapter.fragmentHost?.notifyDataReady(fragmentAdapter)
 
-                // Update the alphabet strip with available letters
-                updateAlphabetStrip()
+                // Now that grid is loaded, attach key listener for alphabet trigger
+                view?.let { attachKeyInterceptor(it) }
             } catch (_: Exception) {}
         }
     }
 
-    private fun addAlphabetStrip(rootView: View) {
-        // Find the root FrameLayout and overlay the alphabet strip on the right
-        val parent = rootView as? ViewGroup ?: return
-        val context = requireContext()
+    private fun attachKeyInterceptor(rootView: View) {
+        // Intercept key events on the root view to catch RIGHT at grid edge
+        rootView.setOnKeyListener { _, keyCode, event ->
+            if (event.action != KeyEvent.ACTION_DOWN) return@setOnKeyListener false
+
+            if (stripShowing) {
+                // Strip is active — handle navigation within it
+                return@setOnKeyListener handleStripKey(keyCode)
+            }
+
+            // RIGHT press — check if we should show the alphabet
+            if (keyCode == KeyEvent.KEYCODE_DPAD_RIGHT) {
+                // If on the rightmost column, show alphabet
+                if (currentGridPosition >= 0 && (currentGridPosition + 1) % columns == 0) {
+                    showAlphabetStrip(rootView)
+                    return@setOnKeyListener true
+                }
+            }
+
+            // Also allow a dedicated button (e.g., menu) to open the strip
+            if (keyCode == KeyEvent.KEYCODE_MENU) {
+                showAlphabetStrip(rootView)
+                return@setOnKeyListener true
+            }
+
+            false
+        }
+    }
+
+    private fun showAlphabetStrip(rootView: View) {
+        if (stripShowing) return
+        stripShowing = true
+        lastGridPosition = currentGridPosition
+
+        val context = context ?: return
         val density = context.resources.displayMetrics.density
 
-        val scrollView = ScrollView(context).apply {
+        // Remove old strip if any
+        hideAlphabetStrip()
+
+        val parent = rootView as? ViewGroup ?: rootView.parent as? ViewGroup ?: return
+
+        alphabetScroll = ScrollView(context).apply {
             layoutParams = FrameLayout.LayoutParams(
-                (32 * density).toInt(),
+                (40 * density).toInt(),
                 ViewGroup.LayoutParams.MATCH_PARENT,
-                Gravity.END or Gravity.CENTER_VERTICAL
+                Gravity.END
             ).apply {
-                topMargin = (8 * density).toInt()
-                bottomMargin = (8 * density).toInt()
-                marginEnd = (4 * density).toInt()
+                topMargin = (4 * density).toInt()
+                bottomMargin = (4 * density).toInt()
             }
+            setBackgroundColor(0xDD1A1A2E.toInt())
             isVerticalScrollBarEnabled = false
-            visibility = View.GONE
+            elevation = 16 * density
         }
 
         alphabetStrip = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(0, (4 * density).toInt(), 0, (4 * density).toInt())
+            setPadding(0, (8 * density).toInt(), 0, (8 * density).toInt())
         }
-
-        scrollView.addView(alphabetStrip)
-
-        // Wrap the existing content in a FrameLayout if needed
-        if (parent is FrameLayout) {
-            parent.addView(scrollView)
-        } else {
-            // Wrap
-            val wrapper = FrameLayout(context).apply {
-                layoutParams = parent.layoutParams
-            }
-            val index = (parent.parent as? ViewGroup)?.indexOfChild(parent) ?: -1
-            val grandParent = parent.parent as? ViewGroup
-            grandParent?.removeView(parent)
-            wrapper.addView(parent)
-            wrapper.addView(scrollView)
-            grandParent?.addView(wrapper, index)
-        }
-
-        // Store ref to the scroll view for show/hide
-        scrollView.tag = "alphabet_scroll"
-    }
-
-    private fun updateAlphabetStrip() {
-        val strip = alphabetStrip ?: return
-        val context = context ?: return
-        val density = context.resources.displayMetrics.density
-
-        strip.removeAllViews()
 
         val letters = "#ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+        var firstFocusable: View? = null
+
         for (ch in letters) {
             val hasContent = ch in letterIndex
             val tv = TextView(context).apply {
                 text = ch.toString()
-                textSize = 12f
+                textSize = 14f
                 gravity = Gravity.CENTER
                 setTypeface(typeface, Typeface.BOLD)
-                setPadding(0, (2 * density).toInt(), 0, (2 * density).toInt())
                 layoutParams = LinearLayout.LayoutParams(
-                    (28 * density).toInt(),
-                    ViewGroup.LayoutParams.WRAP_CONTENT
+                    (36 * density).toInt(),
+                    (22 * density).toInt()
                 )
 
                 if (hasContent) {
                     setTextColor(0xFFE5A00D.toInt())
                     isFocusable = true
                     isFocusableInTouchMode = true
-                    setBackgroundResource(com.plexclient.R.drawable.top_bar_icon_bg)
 
-                    setOnFocusChangeListener { _, hasFocus ->
+                    setOnFocusChangeListener { v, hasFocus ->
                         if (hasFocus) {
-                            setTextColor(0xFFFFFFFF.toInt())
-                            scaleX = 1.3f
-                            scaleY = 1.3f
+                            (v as TextView).setTextColor(0xFFFFFFFF.toInt())
+                            v.setBackgroundColor(0x44E5A00D.toInt())
                         } else {
-                            setTextColor(0xFFE5A00D.toInt())
-                            scaleX = 1.0f
-                            scaleY = 1.0f
+                            (v as TextView).setTextColor(0xFFE5A00D.toInt())
+                            v.setBackgroundColor(0x00000000)
                         }
-                    }
-
-                    setOnClickListener { jumpToLetter(ch) }
-                    setOnKeyListener { _, keyCode, event ->
-                        if (event.action == KeyEvent.ACTION_DOWN &&
-                            (keyCode == KeyEvent.KEYCODE_DPAD_CENTER || keyCode == KeyEvent.KEYCODE_ENTER)) {
-                            jumpToLetter(ch)
-                            true
-                        } else false
                     }
                 } else {
                     setTextColor(0xFF444444.toInt())
                 }
             }
-            strip.addView(tv)
+            alphabetStrip!!.addView(tv)
+            if (hasContent && firstFocusable == null) firstFocusable = tv
         }
 
-        // Show the strip
-        val scrollView = strip.parent as? View
-        scrollView?.visibility = View.VISIBLE
+        alphabetScroll!!.addView(alphabetStrip)
+
+        // Find or create a FrameLayout wrapper
+        if (parent is FrameLayout) {
+            parent.addView(alphabetScroll)
+        } else {
+            // Add directly to the root
+            (rootView.rootView as? ViewGroup)?.addView(alphabetScroll)
+        }
+
+        // Focus the first available letter
+        firstFocusable?.requestFocus()
     }
 
-    private fun jumpToLetter(letter: Char) {
-        val position = letterIndex[letter] ?: return
-        // Select the item at that position in the grid
-        setSelectedPosition(position)
+    private fun handleStripKey(keyCode: Int): Boolean {
+        val strip = alphabetStrip ?: return false
+
+        when (keyCode) {
+            KeyEvent.KEYCODE_DPAD_LEFT, KeyEvent.KEYCODE_BACK -> {
+                // Exit strip, return to grid
+                hideAlphabetStrip()
+                stripShowing = false
+                setSelectedPosition(lastGridPosition)
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_CENTER, KeyEvent.KEYCODE_ENTER -> {
+                // Find which letter is focused
+                for (i in 0 until strip.childCount) {
+                    val child = strip.getChildAt(i) as? TextView ?: continue
+                    if (child.isFocused) {
+                        val letter = child.text.firstOrNull() ?: continue
+                        val position = letterIndex[letter]
+                        if (position != null) {
+                            hideAlphabetStrip()
+                            stripShowing = false
+                            setSelectedPosition(position)
+                        }
+                        return true
+                    }
+                }
+                return true
+            }
+            KeyEvent.KEYCODE_DPAD_UP, KeyEvent.KEYCODE_DPAD_DOWN -> {
+                // Let default focus navigation handle up/down within the strip
+                return false
+            }
+        }
+        return false
+    }
+
+    private fun hideAlphabetStrip() {
+        alphabetScroll?.let { scroll ->
+            (scroll.parent as? ViewGroup)?.removeView(scroll)
+        }
+        alphabetScroll = null
+        alphabetStrip = null
     }
 
     private fun sortTitle(title: String): String {
