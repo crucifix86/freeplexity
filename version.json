@@ -1,6 +1,6 @@
 {
-  "versionCode": 7,
-  "versionName": "2.1",
+  "versionCode": 8,
+  "versionName": "2.2",
   "apkUrl": "https://github.com/crucifix86/freeplexity/releases/latest/download/freeplexity.apk",
-  "changelog": "Fixes AC3 passthrough audio dropout (Media3 1.5.1), transcode fallback now works (fixed HTTP 400), no more audio-language filtering on untagged tracks."
+  "changelog": "Recently Added now shows every library (Movies, Cartoons, Anime, Kids, etc.), not just Movies and TV. Show/season cards now show episode counts. Theme songs play on show detail pages. FreePlexity wordmark in top bar."
 }

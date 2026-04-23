@@ -1,7 +1,11 @@
 package com.plexclient.ui.details
 
 import android.content.Intent
+import android.media.AudioAttributes
+import android.media.MediaPlayer
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.view.Gravity
 import android.view.ViewGroup
 import android.widget.ImageView
@@ -26,6 +30,7 @@ class DetailsActivity : FragmentActivity() {
     private val plexClient get() = PlexApp.instance.plexClient
     private val tokenStore get() = PlexApp.instance.tokenStore
     private lateinit var item: MediaItem
+    private var themePlayer: MediaPlayer? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -46,6 +51,7 @@ class DetailsActivity : FragmentActivity() {
                 } ?: item
                 item = fullItem
                 bindUI(fullItem)
+                startThemeMusic(fullItem)
 
                 // Tell the rows fragment what to load
                 val rowsFragment = supportFragmentManager
@@ -202,6 +208,59 @@ class DetailsActivity : FragmentActivity() {
                 item.leafCount?.let { if (isNotEmpty()) append("  ·  "); append("$it episodes") }
             }
         }
+    }
+
+    private fun startThemeMusic(item: MediaItem) {
+        val themePath = item.bestTheme ?: return
+        val serverUrl = tokenStore.serverUrl ?: return
+        val token = tokenStore.authToken
+        val url = if (token != null) "$serverUrl$themePath?X-Plex-Token=$token" else "$serverUrl$themePath"
+        stopThemeMusic()
+        themePlayer = MediaPlayer().apply {
+            setAudioAttributes(
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_MEDIA)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                    .build()
+            )
+            setOnPreparedListener { mp ->
+                mp.setVolume(0f, 0f)
+                mp.isLooping = true
+                mp.start()
+                val handler = Handler(Looper.getMainLooper())
+                val steps = 15
+                val target = 0.4f
+                for (i in 1..steps) {
+                    val v = (i.toFloat() / steps) * target
+                    handler.postDelayed({ runCatching { mp.setVolume(v, v) } }, (i * 100L))
+                }
+            }
+            setOnErrorListener { _, _, _ -> stopThemeMusic(); true }
+            try {
+                setDataSource(url)
+                prepareAsync()
+            } catch (_: Exception) {
+                stopThemeMusic()
+            }
+        }
+    }
+
+    private fun stopThemeMusic() {
+        themePlayer?.apply {
+            runCatching { if (isPlaying) stop() }
+            runCatching { release() }
+        }
+        themePlayer = null
+    }
+
+    override fun onPause() {
+        super.onPause()
+        stopThemeMusic()
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        stopThemeMusic()
     }
 
     companion object {

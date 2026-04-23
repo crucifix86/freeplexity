@@ -15,6 +15,7 @@ import com.plexclient.ui.playback.PlaybackActivity
 import com.plexclient.ui.presenters.CardPresenter
 import com.plexclient.ui.presenters.WideCardPresenter
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -28,6 +29,7 @@ class HomeRowsFragment : RowsSupportFragment(),
         shadowEnabled = false
         selectEffectEnabled = false
     })
+    private var loadJob: Job? = null
 
     override fun getMainFragmentAdapter() = fragmentAdapter
 
@@ -66,58 +68,49 @@ class HomeRowsFragment : RowsSupportFragment(),
     private fun loadContent() {
         val serverUrl = tokenStore.serverUrl ?: return
 
-        lifecycleScope.launch {
+        loadJob?.cancel()
+        loadJob = lifecycleScope.launch {
             try {
                 val hubs = withContext(Dispatchers.IO) { plexClient.getHubs(serverUrl) }
-                buildRows(hubs, serverUrl)
+                val libraries = withContext(Dispatchers.IO) { plexClient.getLibraries(serverUrl) }
+
+                rowsAdapter.clear()
+                var rowIndex = 0L
+
+                // Continue Watching / On Deck — keep Plex's curated hubs (cross-library).
+                val continueHubs = hubs.filter {
+                    it.hubIdentifier.contains("onDeck", ignoreCase = true) ||
+                    it.hubIdentifier.contains("continueWatching", ignoreCase = true) ||
+                    it.title.contains("Continue", ignoreCase = true) ||
+                    it.title.contains("On Deck", ignoreCase = true)
+                }
+                for (hub in continueHubs) {
+                    if (hub.items.isEmpty()) continue
+                    val presenter = WideCardPresenter(serverUrl, plexClient)
+                    val listAdapter = ArrayObjectAdapter(presenter)
+                    hub.items.forEach { listAdapter.add(it) }
+                    rowsAdapter.add(ListRow(HeaderItem(rowIndex++, hub.title), listAdapter))
+                }
+
+                // Recently Added — one row per library, in the order Plex lists them.
+                for (library in libraries) {
+                    if (library.type !in setOf("movie", "show", "artist")) continue
+                    val paged = try {
+                        withContext(Dispatchers.IO) {
+                            plexClient.getRecentlyAddedForLibrary(serverUrl, library.key)
+                        }
+                    } catch (_: Exception) { continue }
+                    if (paged.items.isEmpty()) continue
+                    val presenter = CardPresenter(serverUrl, plexClient)
+                    val listAdapter = ArrayObjectAdapter(presenter)
+                    paged.items.forEach { listAdapter.add(it) }
+                    rowsAdapter.add(
+                        ListRow(HeaderItem(rowIndex++, "Recently Added — ${library.title}"), listAdapter)
+                    )
+                }
+
                 fragmentAdapter.fragmentHost?.notifyDataReady(fragmentAdapter)
             } catch (_: Exception) {}
-        }
-    }
-
-    private fun buildRows(hubs: List<Hub>, serverUrl: String) {
-        rowsAdapter.clear()
-        var rowIndex = 0L
-
-        // Gather Continue Watching + On Deck into one group at the top
-        val continueWatchingHubs = hubs.filter {
-            it.hubIdentifier.contains("onDeck", ignoreCase = true) ||
-            it.hubIdentifier.contains("continueWatching", ignoreCase = true) ||
-            it.title.contains("Continue", ignoreCase = true) ||
-            it.title.contains("On Deck", ignoreCase = true)
-        }
-        for (hub in continueWatchingHubs) {
-            if (hub.items.isEmpty()) continue
-            val widePresenter = WideCardPresenter(serverUrl, plexClient)
-            val listAdapter = ArrayObjectAdapter(widePresenter)
-            hub.items.forEach { listAdapter.add(it) }
-            rowsAdapter.add(ListRow(HeaderItem(rowIndex++, hub.title), listAdapter))
-        }
-
-        // Recently Added rows — poster cards
-        val recentHubs = hubs.filter {
-            it.hubIdentifier.contains("recentlyAdded", ignoreCase = true) ||
-            it.title.contains("Recently Added", ignoreCase = true)
-        }
-        for (hub in recentHubs) {
-            if (hub.items.isEmpty()) continue
-            val cardPresenter = CardPresenter(serverUrl, plexClient)
-            val listAdapter = ArrayObjectAdapter(cardPresenter)
-            hub.items.forEach { listAdapter.add(it) }
-            rowsAdapter.add(ListRow(HeaderItem(rowIndex++, hub.title), listAdapter))
-        }
-
-        // Remaining hubs (recommendations, trending, etc.)
-        val handledIds = buildSet {
-            continueWatchingHubs.forEach { add(it.hubIdentifier) }
-            recentHubs.forEach { add(it.hubIdentifier) }
-        }
-        for (hub in hubs) {
-            if (hub.hubIdentifier in handledIds || hub.items.isEmpty()) continue
-            val cardPresenter = CardPresenter(serverUrl, plexClient)
-            val listAdapter = ArrayObjectAdapter(cardPresenter)
-            hub.items.forEach { listAdapter.add(it) }
-            rowsAdapter.add(ListRow(HeaderItem(rowIndex++, hub.title), listAdapter))
         }
     }
 }

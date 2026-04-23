@@ -165,6 +165,27 @@ class PlexClient(private val tokenStore: TokenStore) {
         return parseMetadataArray(container)
     }
 
+    data class PagedItems(val items: List<MediaItem>, val totalSize: Int, val offset: Int)
+
+    fun getRecentlyAddedForLibrary(
+        serverUrl: String,
+        libraryKey: String,
+        start: Int = 0,
+        count: Int = 50
+    ): PagedItems {
+        val container = getContainer(
+            "$serverUrl/library/sections/$libraryKey/recentlyAdded",
+            mapOf(
+                "X-Plex-Container-Start" to start.toString(),
+                "X-Plex-Container-Size" to count.toString()
+            )
+        )
+        val total = container.get("totalSize")?.asInt
+            ?: container.get("size")?.asInt
+            ?: 0
+        return PagedItems(parseMetadataArray(container), total, start)
+    }
+
     fun getOnDeck(serverUrl: String): List<MediaItem> {
         val container = getContainer("$serverUrl/library/onDeck")
         return parseMetadataArray(container)
@@ -356,7 +377,10 @@ class PlexClient(private val tokenStore: TokenStore) {
             media = parseMedia(obj),
             roles = parseRoles(obj),
             directors = parseCrew(obj, "Director"),
-            writers = parseCrew(obj, "Writer")
+            writers = parseCrew(obj, "Writer"),
+            theme = obj.get("theme")?.asString,
+            parentTheme = obj.get("parentTheme")?.asString,
+            grandparentTheme = obj.get("grandparentTheme")?.asString
         )
     }
 

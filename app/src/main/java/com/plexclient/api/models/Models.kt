@@ -35,8 +35,14 @@ data class MediaItem(
     val grandparentRatingKey: String? = null,
     val roles: List<CastMember> = emptyList(),
     val directors: List<CrewMember> = emptyList(),
-    val writers: List<CrewMember> = emptyList()
+    val writers: List<CrewMember> = emptyList(),
+    val theme: String? = null,
+    val parentTheme: String? = null,
+    val grandparentTheme: String? = null
 ) : Serializable {
+
+    val bestTheme: String?
+        get() = theme ?: parentTheme ?: grandparentTheme
 
     val displayTitle: String
         get() = when (type) {
@@ -53,8 +59,9 @@ data class MediaItem(
     val displaySubtitle: String?
         get() = when (type) {
             "episode" -> grandparentTitle
-            "season" -> parentTitle
+            "season" -> leafCount?.let { "$it episode${if (it == 1) "" else "s"}" } ?: parentTitle
             "movie" -> year?.toString()
+            "show" -> leafCount?.let { "$it episode${if (it == 1) "" else "s"}" } ?: year?.toString()
             else -> null
         }
 
