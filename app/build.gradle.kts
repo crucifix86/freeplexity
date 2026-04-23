@@ -12,8 +12,8 @@ android {
         applicationId = "com.plexclient"
         minSdk = 21
         targetSdk = 34
-        versionCode = 6
-        versionName = "2.0"
+        versionCode = 7
+        versionName = "2.1"
     }
 
     buildTypes {
@@ -48,11 +48,11 @@ dependencies {
     implementation("androidx.leanback:leanback:1.0.0")
 
     // Media3 / ExoPlayer
-    implementation("androidx.media3:media3-exoplayer:1.2.1")
-    implementation("androidx.media3:media3-exoplayer-hls:1.2.1")
-    implementation("androidx.media3:media3-ui:1.2.1")
-    implementation("androidx.media3:media3-ui-leanback:1.2.1")
-    implementation("androidx.media3:media3-session:1.2.1")
+    implementation("androidx.media3:media3-exoplayer:1.4.1")
+    implementation("androidx.media3:media3-exoplayer-hls:1.4.1")
+    implementation("androidx.media3:media3-ui:1.4.1")
+    implementation("androidx.media3:media3-ui-leanback:1.4.1")
+    implementation("androidx.media3:media3-session:1.4.1")
 
     // Networking
     implementation("com.squareup.okhttp3:okhttp:4.12.0")

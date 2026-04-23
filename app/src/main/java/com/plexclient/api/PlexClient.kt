@@ -7,6 +7,7 @@ import com.plexclient.data.TokenStore
 import okhttp3.HttpUrl.Companion.toHttpUrl
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import java.util.UUID
 import java.util.concurrent.TimeUnit
 
 class PlexClient(private val tokenStore: TokenStore) {
@@ -27,6 +28,21 @@ class PlexClient(private val tokenStore: TokenStore) {
             "X-Plex-Device" to "Android TV",
             "X-Plex-Device-Name" to "PlexClient"
         )
+
+    // Headers Plex needs for transcode profile matching + auth (no Accept header — ExoPlayer sets its own).
+    fun plexHttpHeaders(): Map<String, String> {
+        val h = plexHeaders.toMutableMap().apply { remove("Accept") }
+        tokenStore.authToken?.let { h["X-Plex-Token"] = it }
+        return h
+    }
+
+    // Containers Media3/ExoPlayer's extractors parse reliably. Others (avi, wmv, flv, mpg, vob,
+    // asf, rm) can technically "direct play" from Plex's POV but ExoPlayer chokes — so we ask
+    // Plex to transcode them instead of attempting direct play.
+    private fun canDirectPlay(item: MediaItem): Boolean {
+        val container = item.media.firstOrNull()?.container?.lowercase() ?: return true
+        return container in setOf("mp4", "m4v", "mov", "mkv", "matroska", "webm", "ts", "hls", "mp3", "aac", "flac", "ogg")
+    }
 
     // -- Raw HTTP -----------------------------------------------------------
 
@@ -192,28 +208,70 @@ class PlexClient(private val tokenStore: TokenStore) {
             else "$serverUrl$partKey"
     }
 
-    fun getTranscodeUrl(serverUrl: String, item: MediaItem, startOffset: Long = 0): String {
-        val token = tokenStore.authToken ?: ""
-        return "$serverUrl/video/:/transcode/universal/start.m3u8".toHttpUrl().newBuilder()
-            .addQueryParameter("path", "/library/metadata/${item.ratingKey}")
-            .addQueryParameter("mediaIndex", "0")
-            .addQueryParameter("partIndex", "0")
-            .addQueryParameter("protocol", "hls")
-            .addQueryParameter("offset", (startOffset / 1000).toString())
-            .addQueryParameter("fastSeek", "1")
-            .addQueryParameter("directPlay", "0")
-            .addQueryParameter("directStream", "1")
-            .addQueryParameter("subtitleSize", "100")
-            .addQueryParameter("audioBoost", "100")
-            .addQueryParameter("autoAdjustQuality", "0")
-            .addQueryParameter("maxVideoBitrate", "20000")
-            .addQueryParameter("videoQuality", "100")
-            .addQueryParameter("videoResolution", "1920x1080")
-            .addQueryParameter("X-Plex-Token", token)
-            .addQueryParameter("X-Plex-Client-Identifier", tokenStore.clientId)
-            .addQueryParameter("X-Plex-Platform", "Android")
-            .build()
-            .toString()
+    sealed class PlaybackPlan {
+        data class DirectPlay(val url: String) : PlaybackPlan()
+        data class Transcode(val url: String) : PlaybackPlan()
+    }
+
+    /**
+     * Ask Plex's decision engine how to stream the item, then build the matching URL.
+     * Plex tells us one of: directPlay / directStream / transcode / copy. We honour it.
+     *
+     * forceTranscode=true pins directPlay=0 so Plex will pick a transcoding path (used
+     * as a fallback after direct play fails in the player).
+     */
+    fun getPlaybackPlan(
+        serverUrl: String,
+        item: MediaItem,
+        startOffset: Long = 0,
+        forceTranscode: Boolean = false
+    ): PlaybackPlan {
+        val session = UUID.randomUUID().toString()
+        val allowDirectPlay = !forceTranscode && canDirectPlay(item)
+        val params = mapOf(
+            "hasMDE" to "1",
+            "path" to "/library/metadata/${item.ratingKey}",
+            "mediaIndex" to "0",
+            "partIndex" to "0",
+            "protocol" to "hls",
+            "fastSeek" to "1",
+            "directPlay" to (if (allowDirectPlay) "1" else "0"),
+            "directStream" to "1",
+            "directStreamAudio" to "1",
+            "subtitleSize" to "100",
+            "subtitles" to "auto",
+            "audioBoost" to "100",
+            "location" to "lan",
+            "autoAdjustQuality" to "0",
+            "mediaBufferSize" to "102400",
+            "maxVideoBitrate" to "20000",
+            "videoQuality" to "100",
+            "videoResolution" to "1920x1080",
+            "offset" to (startOffset / 1000).toString(),
+            "session" to session,
+            "X-Plex-Session-Identifier" to session
+        )
+
+        val decision = try {
+            val resp = get("$serverUrl/video/:/transcode/universal/decision", params)
+            resp.getAsJsonObject("MediaContainer")
+                ?.getAsJsonArray("Metadata")?.takeIf { it.size() > 0 }?.get(0)?.asJsonObject
+                ?.getAsJsonArray("Media")?.takeIf { it.size() > 0 }?.get(0)?.asJsonObject
+                ?.getAsJsonArray("Part")?.takeIf { it.size() > 0 }?.get(0)?.asJsonObject
+                ?.get("decision")?.asString?.lowercase()
+        } catch (_: Exception) { null }
+
+        // Plex values observed: "directplay", "directstream", "transcode", "copy".
+        if (decision == "directplay") {
+            val directUrl = getDirectPlayUrl(serverUrl, item)
+            if (directUrl != null) return PlaybackPlan.DirectPlay(directUrl)
+        }
+
+        // decision == "transcode" / "directStream" / "copy" / unknown → build start.m3u8 on the same session
+        val transcodeParams = params + ("directPlay" to "0")
+        val builder = "$serverUrl/video/:/transcode/universal/start.m3u8".toHttpUrl().newBuilder()
+        transcodeParams.forEach { (k, v) -> builder.addQueryParameter(k, v) }
+        return PlaybackPlan.Transcode(builder.build().toString())
     }
 
     // -- Playback state reporting -------------------------------------------

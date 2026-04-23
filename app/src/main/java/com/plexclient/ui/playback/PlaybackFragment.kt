@@ -17,8 +17,11 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.Tracks
+import androidx.media3.datasource.DefaultDataSource
+import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.DefaultRenderersFactory
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.ui.leanback.LeanbackPlayerAdapter
 import com.plexclient.PlexApp
 import com.plexclient.api.models.MediaItem
@@ -72,16 +75,19 @@ class PlaybackFragment : VideoSupportFragment() {
             .setExtensionRendererMode(DefaultRenderersFactory.EXTENSION_RENDERER_MODE_PREFER)
             .setEnableAudioTrackPlaybackParams(true)
 
+        val httpFactory = DefaultHttpDataSource.Factory()
+            .setAllowCrossProtocolRedirects(true)
+            .setDefaultRequestProperties(plexClient.plexHttpHeaders())
+        val dataSourceFactory = DefaultDataSource.Factory(context, httpFactory)
+        val mediaSourceFactory = DefaultMediaSourceFactory(context)
+            .setDataSourceFactory(dataSourceFactory)
+
         player = ExoPlayer.Builder(context, renderersFactory)
+            .setMediaSourceFactory(mediaSourceFactory)
             .setHandleAudioBecomingNoisy(true)
             .setSeekForwardIncrementMs(30_000)
             .setSeekBackIncrementMs(10_000)
             .build()
-            .apply {
-                trackSelectionParameters = trackSelectionParameters.buildUpon()
-                    .setPreferredAudioLanguage("en")
-                    .build()
-            }
 
         val playerAdapter = LeanbackPlayerAdapter(context, player!!, UPDATE_INTERVAL_MS.toInt())
 
@@ -133,16 +139,22 @@ class PlaybackFragment : VideoSupportFragment() {
         val prefs = requireContext().getSharedPreferences("plex_settings", 0)
         val preferDirectPlay = prefs.getBoolean("direct_play", true)
 
-        if (preferDirectPlay) {
-            val directUrl = plexClient.getDirectPlayUrl(serverUrl, item)
-            if (directUrl != null) {
-                playUrl(directUrl, isTranscode = false)
-                return
+        val resumeOffset = if (resumePlayback) item.viewOffset ?: 0 else 0
+        requestPlan(serverUrl, resumeOffset, forceTranscode = !preferDirectPlay)
+    }
+
+    private fun requestPlan(serverUrl: String, startOffset: Long, forceTranscode: Boolean) {
+        CoroutineScope(Dispatchers.Main).launch {
+            val plan = withContext(Dispatchers.IO) {
+                plexClient.getPlaybackPlan(serverUrl, item, startOffset, forceTranscode)
+            }
+            when (plan) {
+                is com.plexclient.api.PlexClient.PlaybackPlan.DirectPlay ->
+                    playUrl(plan.url, isTranscode = false)
+                is com.plexclient.api.PlexClient.PlaybackPlan.Transcode ->
+                    playUrl(plan.url, isTranscode = true)
             }
         }
-
-        val transcodeUrl = plexClient.getTranscodeUrl(serverUrl, item)
-        playUrl(transcodeUrl, isTranscode = true)
     }
 
     private fun playUrl(url: String, isTranscode: Boolean) {
@@ -345,8 +357,7 @@ class PlaybackFragment : VideoSupportFragment() {
 
         if (currentUrl == directUrl) {
             Toast.makeText(requireContext(), "Switching to transcode...", Toast.LENGTH_SHORT).show()
-            val transcodeUrl = plexClient.getTranscodeUrl(serverUrl, item, startOffset = player?.currentPosition ?: 0)
-            playUrl(transcodeUrl, isTranscode = true)
+            requestPlan(serverUrl, startOffset = player?.currentPosition ?: 0, forceTranscode = true)
         } else {
             Toast.makeText(requireContext(), "Playback error: ${error.message}", Toast.LENGTH_LONG).show()
             requireActivity().finish()
