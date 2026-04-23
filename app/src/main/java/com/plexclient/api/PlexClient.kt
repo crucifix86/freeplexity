@@ -380,7 +380,8 @@ class PlexClient(private val tokenStore: TokenStore) {
             writers = parseCrew(obj, "Writer"),
             theme = obj.get("theme")?.asString,
             parentTheme = obj.get("parentTheme")?.asString,
-            grandparentTheme = obj.get("grandparentTheme")?.asString
+            grandparentTheme = obj.get("grandparentTheme")?.asString,
+            librarySectionID = obj.get("librarySectionID")?.asString
         )
     }
 

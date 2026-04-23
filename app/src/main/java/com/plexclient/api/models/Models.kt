@@ -38,7 +38,8 @@ data class MediaItem(
     val writers: List<CrewMember> = emptyList(),
     val theme: String? = null,
     val parentTheme: String? = null,
-    val grandparentTheme: String? = null
+    val grandparentTheme: String? = null,
+    val librarySectionID: String? = null
 ) : Serializable {
 
     val bestTheme: String?

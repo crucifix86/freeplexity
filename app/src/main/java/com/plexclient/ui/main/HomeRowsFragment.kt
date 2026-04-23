@@ -82,6 +82,8 @@ class HomeRowsFragment : RowsSupportFragment(),
                 var rowIndex = 0L
 
                 // Continue Watching / On Deck — keep Plex's curated hubs (cross-library).
+                // Filter items whose library the active user isn't allowed to access.
+                val userStore = PlexApp.instance.userStore
                 val continueHubs = hubs.filter {
                     it.hubIdentifier.contains("onDeck", ignoreCase = true) ||
                     it.hubIdentifier.contains("continueWatching", ignoreCase = true) ||
@@ -89,16 +91,20 @@ class HomeRowsFragment : RowsSupportFragment(),
                     it.title.contains("On Deck", ignoreCase = true)
                 }
                 for (hub in continueHubs) {
-                    if (hub.items.isEmpty()) continue
+                    val allowedItems = hub.items.filter { item ->
+                        item.librarySectionID?.let { userStore.canAccessLibrary(it) } ?: true
+                    }
+                    if (allowedItems.isEmpty()) continue
                     val presenter = WideCardPresenter(serverUrl, plexClient)
                     val listAdapter = ArrayObjectAdapter(presenter)
-                    hub.items.forEach { listAdapter.add(it) }
+                    allowedItems.forEach { listAdapter.add(it) }
                     rowsAdapter.add(ListRow(HeaderItem(rowIndex++, hub.title), listAdapter))
                 }
 
                 // Recently Added — one row per library, in the order Plex lists them.
                 for (library in libraries) {
                     if (library.type !in setOf("movie", "show", "artist")) continue
+                    if (!userStore.canAccessLibrary(library.key)) continue
                     val paged = try {
                         withContext(Dispatchers.IO) {
                             plexClient.getRecentlyAddedForLibrary(serverUrl, library.key)

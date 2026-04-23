@@ -1,5 +1,6 @@
 package com.plexclient.ui.settings
 
+import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.fragment.app.FragmentActivity
@@ -8,6 +9,9 @@ import androidx.leanback.widget.GuidanceStylist
 import androidx.leanback.widget.GuidedAction
 import androidx.lifecycle.lifecycleScope
 import com.plexclient.PlexApp
+import com.plexclient.data.UserRole
+import com.plexclient.ui.users.UserManagementActivity
+import com.plexclient.ui.users.UserPickerActivity
 import kotlinx.coroutines.launch
 
 class SettingsActivity : FragmentActivity() {
@@ -80,6 +84,22 @@ class SettingsFragment : GuidedStepSupportFragment() {
             .description("Version ${getCurrentVersion()}")
             .build())
 
+        val activeUser = PlexApp.instance.userStore.activeUser
+        actions.add(GuidedAction.Builder(requireContext())
+            .id(ACTION_SWITCH_USER)
+            .title("Switch User")
+            .description(activeUser?.let { "Currently: ${it.name}" } ?: "No user active")
+            .build())
+
+        // Admin-only: manage users
+        if (activeUser?.role == UserRole.ADMIN) {
+            actions.add(GuidedAction.Builder(requireContext())
+                .id(ACTION_MANAGE_USERS)
+                .title("Manage Users")
+                .description("Add, edit, or remove profiles")
+                .build())
+        }
+
         actions.add(GuidedAction.Builder(requireContext())
             .id(ACTION_CLEAR)
             .title("Sign Out")
@@ -127,6 +147,17 @@ class SettingsFragment : GuidedStepSupportFragment() {
                     notifyActionChanged(findActionPositionById(ACTION_UPDATE))
                     checkForUpdate()
                 }
+            }
+            ACTION_SWITCH_USER -> {
+                PlexApp.instance.userStore.activeUserId = null
+                startActivity(Intent(requireContext(), UserPickerActivity::class.java).apply {
+                    putExtra(UserPickerActivity.EXTRA_FORCE_PICK, true)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK)
+                })
+                requireActivity().finish()
+            }
+            ACTION_MANAGE_USERS -> {
+                startActivity(Intent(requireContext(), UserManagementActivity::class.java))
             }
             ACTION_CLEAR -> {
                 PlexApp.instance.tokenStore.clear()
@@ -232,5 +263,7 @@ class SettingsFragment : GuidedStepSupportFragment() {
         private const val ACTION_SUBTITLE_SIZE = 6L
         private const val ACTION_UPDATE = 7L
         private const val ACTION_CLEAR = 8L
+        private const val ACTION_SWITCH_USER = 9L
+        private const val ACTION_MANAGE_USERS = 10L
     }
 }

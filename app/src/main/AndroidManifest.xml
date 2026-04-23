@@ -66,5 +66,20 @@
             android:screenOrientation="landscape"
             android:theme="@style/AppTheme" />
 
+        <activity
+            android:name=".ui.users.UserPickerActivity"
+            android:screenOrientation="landscape"
+            android:theme="@style/AppTheme" />
+
+        <activity
+            android:name=".ui.users.UserEditActivity"
+            android:screenOrientation="landscape"
+            android:theme="@style/AppTheme" />
+
+        <activity
+            android:name=".ui.users.UserManagementActivity"
+            android:screenOrientation="landscape"
+            android:theme="@style/AppTheme" />
+
     </application>
 </manifest>

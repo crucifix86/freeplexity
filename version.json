@@ -1,6 +1,6 @@
 {
-  "versionCode": 9,
-  "versionName": "2.3",
+  "versionCode": 10,
+  "versionName": "2.4",
   "apkUrl": "https://github.com/crucifix86/freeplexity/releases/latest/download/freeplexity.apk",
-  "changelog": "Plex-style backdrop art: a dimmed fanart image of the focused item now fades in behind Home rows, library grids, and detail pages."
+  "changelog": "Multi-user with admin + restricted profiles (PIN-protected), library access enforced per user. Admin manages users in Settings > Manage Users; restricted users only see libraries the admin allowed."
 }

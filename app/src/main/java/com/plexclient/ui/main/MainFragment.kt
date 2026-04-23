@@ -99,8 +99,10 @@ class MainFragment : BrowseSupportFragment() {
 
                 pageAdapter.add(PageRow(HeaderItem(HOME_ID, "Home")))
 
+                val userStore = PlexApp.instance.userStore
                 var libId = 100L
                 for (lib in libraries) {
+                    if (!userStore.canAccessLibrary(lib.key)) continue
                     libraryMap[libId] = Pair(lib.key, lib.type)
                     pageAdapter.add(PageRow(HeaderItem(libId, lib.title)))
                     libId++

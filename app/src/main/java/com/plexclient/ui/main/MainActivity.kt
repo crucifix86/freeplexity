@@ -33,6 +33,15 @@ class MainActivity : FragmentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Require an active local user — redirect to picker / first-run if none.
+        val userStore = PlexApp.instance.userStore
+        if (userStore.activeUser == null) {
+            startActivity(Intent(this, com.plexclient.ui.users.UserPickerActivity::class.java))
+            finish()
+            return
+        }
+
         setContentView(R.layout.activity_main)
 
         backgroundManager = BackgroundManager.getInstance(this).apply {
