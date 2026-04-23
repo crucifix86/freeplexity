@@ -1,6 +1,10 @@
 package com.plexclient.ui.details
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.LayerDrawable
 import android.media.AudioAttributes
 import android.media.MediaPlayer
 import android.os.Bundle
@@ -8,6 +12,9 @@ import android.os.Handler
 import android.os.Looper
 import android.view.Gravity
 import android.view.ViewGroup
+import androidx.leanback.app.BackgroundManager
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -36,11 +43,37 @@ class DetailsActivity : FragmentActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_details)
 
+        BackgroundManager.getInstance(this).apply {
+            attach(window)
+            color = 0xFF1F1F1F.toInt()
+        }
+
         @Suppress("DEPRECATION")
         item = intent.getSerializableExtra(EXTRA_ITEM) as? MediaItem
             ?: run { finish(); return }
 
+        loadBackdrop(item)
         loadFullDetails()
+    }
+
+    private fun loadBackdrop(item: MediaItem) {
+        val art = item.bestArt ?: return
+        val serverUrl = tokenStore.serverUrl ?: return
+        val dm = resources.displayMetrics
+        val url = plexClient.getImageUrl(serverUrl, art, dm.widthPixels, dm.heightPixels) ?: return
+        Glide.with(this)
+            .asBitmap()
+            .load(url)
+            .apply(RequestOptions().centerCrop())
+            .into(object : CustomTarget<Bitmap>() {
+                override fun onResourceReady(bmp: Bitmap, transition: Transition<in Bitmap>?) {
+                    val base = BitmapDrawable(resources, bmp)
+                    val dim = ColorDrawable(0xB0000000.toInt())
+                    BackgroundManager.getInstance(this@DetailsActivity).drawable =
+                        LayerDrawable(arrayOf(base, dim))
+                }
+                override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) {}
+            })
     }
 
     private fun loadFullDetails() {

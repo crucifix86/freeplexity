@@ -37,6 +37,10 @@ class HomeRowsFragment : RowsSupportFragment(),
         super.onViewCreated(view, savedInstanceState)
         adapter = rowsAdapter
 
+        setOnItemViewSelectedListener { _, item, _, _ ->
+            (activity as? MainActivity)?.setBackgroundForItem(item as? MediaItem)
+        }
+
         setOnItemViewClickedListener { _, item, _, row ->
             if (item is MediaItem) {
                 val rowHeader = (row as? ListRow)?.headerItem?.name ?: ""

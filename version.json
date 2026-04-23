@@ -1,6 +1,6 @@
 {
-  "versionCode": 8,
-  "versionName": "2.2",
+  "versionCode": 9,
+  "versionName": "2.3",
   "apkUrl": "https://github.com/crucifix86/freeplexity/releases/latest/download/freeplexity.apk",
-  "changelog": "Recently Added now shows every library (Movies, Cartoons, Anime, Kids, etc.), not just Movies and TV. Show/season cards now show episode counts. Theme songs play on show detail pages. FreePlexity wordmark in top bar."
+  "changelog": "Plex-style backdrop art: a dimmed fanart image of the focused item now fades in behind Home rows, library grids, and detail pages."
 }

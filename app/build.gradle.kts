@@ -12,8 +12,8 @@ android {
         applicationId = "com.plexclient"
         minSdk = 21
         targetSdk = 34
-        versionCode = 8
-        versionName = "2.2"
+        versionCode = 9
+        versionName = "2.3"
     }
 
     buildTypes {

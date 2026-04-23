@@ -1,12 +1,23 @@
 package com.plexclient.ui.main
 
 import android.content.Intent
+import android.graphics.Bitmap
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.LayerDrawable
 import android.os.Bundle
 import android.view.KeyEvent
 import android.view.View
 import android.view.ViewGroup
 import androidx.fragment.app.FragmentActivity
+import androidx.leanback.app.BackgroundManager
+import com.bumptech.glide.Glide
+import com.bumptech.glide.request.RequestOptions
+import com.bumptech.glide.request.target.CustomTarget
+import com.bumptech.glide.request.transition.Transition
+import com.plexclient.PlexApp
 import com.plexclient.R
+import com.plexclient.api.models.MediaItem
 import com.plexclient.ui.search.SearchActivity
 import com.plexclient.ui.settings.AppUpdater
 import com.plexclient.ui.settings.SettingsActivity
@@ -17,10 +28,18 @@ import kotlinx.coroutines.launch
 class MainActivity : FragmentActivity() {
 
     private var lastFocusedInContent: View? = null
+    private lateinit var backgroundManager: BackgroundManager
+    private var pendingBgArt: String? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
+
+        backgroundManager = BackgroundManager.getInstance(this).apply {
+            attach(window)
+            // Neutral base so empty selection doesn't flash weirdly
+            color = 0xFF1F1F1F.toInt()
+        }
 
         val searchButton = findViewById<View>(R.id.search_button)
         val settingsButton = findViewById<View>(R.id.settings_button)
@@ -58,6 +77,39 @@ class MainActivity : FragmentActivity() {
 
         // Check for updates in background
         checkForUpdate()
+    }
+
+    fun setBackgroundForItem(item: MediaItem?) {
+        val art = item?.bestArt
+        if (art == null) {
+            if (pendingBgArt != null) {
+                pendingBgArt = null
+                runCatching { backgroundManager.clearDrawable() }
+            }
+            return
+        }
+        if (art == pendingBgArt) return
+        pendingBgArt = art
+
+        val serverUrl = PlexApp.instance.tokenStore.serverUrl ?: return
+        val dm = resources.displayMetrics
+        val url = PlexApp.instance.plexClient.getImageUrl(
+            serverUrl, art, width = dm.widthPixels, height = dm.heightPixels
+        ) ?: return
+
+        Glide.with(this)
+            .asBitmap()
+            .load(url)
+            .apply(RequestOptions().centerCrop())
+            .into(object : CustomTarget<Bitmap>() {
+                override fun onResourceReady(bmp: Bitmap, transition: Transition<in Bitmap>?) {
+                    if (art != pendingBgArt) return
+                    val base = BitmapDrawable(resources, bmp)
+                    val dim = ColorDrawable(0xB0000000.toInt())
+                    backgroundManager.drawable = LayerDrawable(arrayOf(base, dim))
+                }
+                override fun onLoadCleared(placeholder: android.graphics.drawable.Drawable?) {}
+            })
     }
 
     private fun checkForUpdate() {

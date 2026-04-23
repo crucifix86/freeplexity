@@ -72,6 +72,9 @@ class LibraryGridFragment : VerticalGridSupportFragment(),
             if (item is MediaItem) {
                 val idx = sortedItems.indexOf(item)
                 if (idx >= 0) currentGridPosition = idx
+                (activity as? MainActivity)?.setBackgroundForItem(item)
+            } else {
+                (activity as? MainActivity)?.setBackgroundForItem(null)
             }
         }
 
